@@ -9,6 +9,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/ramenbox/speedy/actions/workflows/ci.yml"><img src="https://github.com/ramenbox/speedy/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <img src="https://img.shields.io/badge/macOS-13%2B-000000?logo=apple&logoColor=white" alt="macOS 13+" />
   <img src="https://img.shields.io/badge/Swift-SwiftUI%20%2B%20Charts-F05138?logo=swift&logoColor=white" alt="Swift" />
   <img src="https://img.shields.io/badge/dependencies-none-2ea44f" alt="No dependencies" />
