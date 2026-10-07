@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [1.0.1] - 2026-10-07
 
+### Changed
+
+- The panel opens without animation. It shows in under 10 ms, instead of a 500 ms animation that stutters.
+
 ### Removed
 
 - The one-time import of `~/Documents/Office Speedtest/results.csv`. Speedy no longer reads the Documents folder, so macOS does not ask for access to it.

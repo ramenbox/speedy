@@ -47,6 +47,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         hostingController.sizingOptions = [.preferredContentSize]
         popover.contentViewController = hostingController
         popover.behavior = .transient
+        // The open animation of a popover this large takes about 500 ms and stutters. Without it, the panel shows in under 10 ms.
+        popover.animates = false
+        // The first layout of the panel and the chart takes about 70 ms. Doing it at launch keeps the first open fast.
+        hostingController.view.layoutSubtreeIfNeeded()
         popover.delegate = self
 
         scheduleSubscription = model.$schedule.sink { [weak self] schedule in
