@@ -153,12 +153,6 @@ You can open the file with any SQLite tool, for example `sqlite3`.
 | `test_endpoint` | The Apple test server. |
 | `error` | The reason when `status` is `failed`. |
 
-### Coming from Office Speedtest
-
-Speedy is the successor of Office Speedtest. On the first start, it imports
-`~/Documents/Office Speedtest/results.csv` one time. It does not change or delete that file.
-Quit Office Speedtest and remove it from the login items first, so the two apps do not test at the same time.
-
 ## Build from source
 
 You need the Xcode Command Line Tools (`xcode-select --install`). A full Xcode is not necessary.

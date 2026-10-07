@@ -11,7 +11,7 @@ readonly app_zip="${build_directory}/Speedy.zip"
 readonly executable_name="Speedy"
 readonly bundle_identifier="io.github.ramenbox.speedy"
 readonly minimum_macos_version="13.0"
-readonly app_version="1.0"
+readonly app_version="1.0.1"
 
 print_error() {
   local -r message=$1
@@ -73,8 +73,6 @@ cat >"${app_bundle}/Contents/Info.plist" <<PLIST
   <string>${minimum_macos_version}</string>
   <key>LSUIElement</key>
   <true/>
-  <key>NSDocumentsFolderUsageDescription</key>
-  <string>Speedy imports the old results from Documents/Office Speedtest/results.csv one time.</string>
 </dict>
 </plist>
 PLIST

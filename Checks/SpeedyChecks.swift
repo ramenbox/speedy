@@ -38,12 +38,10 @@ enum SpeedyChecks {
         let run = CheckRun()
         checkNetworkQualityParser(run)
         checkCsv(run)
-        checkLegacyParser(run)
         checkSummary(run)
         checkAlertDecision(run)
         checkHistoryRange(run)
         checkStore(run)
-        checkLegacyImport(run)
         checkTextFormatting(run)
         for failure in run.failures {
             print("FAIL \(failure)")
@@ -171,45 +169,6 @@ func checkCsv(_ run: CheckRun) {
     run.expectEqual(csvDocument(for: []), resultsCsvHeader + "\n", "export of no records is the header only")
 }
 
-// MARK: - Legacy results.csv
-
-func checkLegacyParser(_ run: CheckRun) {
-    let text = """
-        \(resultsCsvHeader)
-        2026-09-10 14:20:31,"MacBook Air",ok,87.0,98.9,146,13.5,wifi,en0,defra1-edge-fx-035.aaplimg.com,""
-        2026-09-10 18:51:18,"MacBook Air",failed,,,,,,,,"field dl_throughput is missing: { ""error_code"" : -1009 }"
-        2026-09-10 19:00:00,"MacBook Air",ok,fast,98.9,146,13.5,wifi,en0,endpoint,""
-        2026-09-10 19:30:00,"MacBook Air",unknown,,,,,,,,""
-        not a date,"MacBook Air",ok,1,2,3,4,wifi,en0,endpoint,""
-        too,few
-
-        """
-    switch parseLegacyResultsCsv(text) {
-    case .success(let report):
-        run.expectEqual(report.records.count, 2, "legacy parser reads the valid rows")
-        run.expectEqual(report.records.first?.result, .measured(SpeedMeasurement(
-            downloadMegabitsPerSecond: 87.0,
-            uploadMegabitsPerSecond: 98.9,
-            responsivenessRoundTripsPerMinute: 146,
-            baseRoundTripTimeMilliseconds: 13.5,
-            interfaceType: "wifi",
-            interfaceName: "en0",
-            testEndpoint: "defra1-edge-fx-035.aaplimg.com",
-        )), "legacy parser reads a measured row")
-        run.expectEqual(report.records.last?.result, .failed(message: #"field dl_throughput is missing: { "error_code" : -1009 }"#), "legacy parser reads a failed row")
-        run.expectEqual(report.rowErrors, [
-            LegacyRowError(lineNumber: 4, problem: .invalidNumber(column: "download_mbps", value: "fast")),
-            LegacyRowError(lineNumber: 5, problem: .unknownStatus("unknown")),
-            LegacyRowError(lineNumber: 6, problem: .invalidTimestamp("not a date")),
-            LegacyRowError(lineNumber: 7, problem: .wrongColumnCount(found: 2)),
-        ], "legacy parser reports each bad row")
-    case .failure(let problem):
-        run.expect(false, "legacy parser reads a valid file: \(problem)")
-    }
-    run.expectEqual(parseLegacyResultsCsv("date,speed\n1,2\n"), .failure(.headerMismatch(found: "date,speed")), "legacy parser rejects unknown columns")
-    run.expectEqual(parseLegacyResultsCsv(""), .failure(.headerMismatch(found: "")), "legacy parser rejects an empty file")
-}
-
 // MARK: - Summary
 
 func checkSummary(_ run: CheckRun) {
@@ -284,14 +243,8 @@ func checkStore(_ run: CheckRun) {
     run.expectEqual(store.records(from: .unbounded, maximumCount: 1), .failure(.tooManyRecords(limit: 1)), "store fails closed over the limit")
     run.expectEqual(store.newestRecords(count: 1), .success([newer]), "store reads the newest record")
 
-    run.expectEqual(store.isFlagSet(.legacyResultsImported), .success(false), "flag starts unset")
-    run.expectSuccess(store.setFlag(.legacyResultsImported), "flag can be set")
-    run.expectSuccess(store.setFlag(.legacyResultsImported), "setting a flag twice is fine")
-    run.expectEqual(store.isFlagSet(.legacyResultsImported), .success(true), "flag reads as set")
-
     run.expectSuccess(store.deleteAllResults(), "store deletes the history")
     run.expectEqual(store.records(from: .unbounded, maximumCount: 10), .success([]), "history is empty after delete")
-    run.expectEqual(store.isFlagSet(.legacyResultsImported), .success(true), "delete keeps the flags")
 
     let reopenURL = temporaryFileURL(name: "reopen.sqlite")
     switch ResultStore.open(fileURL: reopenURL).flatMap({ firstStore in firstStore.insert([older]) }) {
@@ -300,47 +253,6 @@ func checkStore(_ run: CheckRun) {
     case .failure(let error):
         run.expect(false, "store opens a new file: \(error.message)")
     }
-}
-
-// MARK: - Legacy import
-
-func checkLegacyImport(_ run: CheckRun) {
-    let store = openTemporaryStore(run)
-    let missingFileURL = temporaryFileURL(name: "results.csv")
-    run.expectEqual(importLegacyResults(fileURL: missingFileURL, into: store), .success(.noLegacyFile), "import without a file sets the flag")
-    run.expectEqual(importLegacyResults(fileURL: missingFileURL, into: store), .success(.alreadyImported), "import runs one time")
-
-    let importStore = openTemporaryStore(run)
-    let fileURL = temporaryFileURL(name: "results.csv")
-    let text = """
-        \(resultsCsvHeader)
-        2026-09-10 14:20:31,"MacBook Air",ok,87.0,98.9,146,13.5,wifi,en0,defra1-edge-fx-035.aaplimg.com,""
-        broken,line
-
-        """
-    do {
-        try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try Data(text.utf8).write(to: fileURL)
-    } catch {
-        preconditionFailure("Could not write the fixture file: \(error)")
-    }
-    run.expectEqual(importLegacyResults(fileURL: fileURL, into: importStore), .success(.imported(insertedCount: 1, skippedRowCount: 1)), "import inserts the valid rows")
-    run.expect(FileManager.default.fileExists(atPath: fileURL.path), "import keeps the old file")
-
-    let badHeaderStore = openTemporaryStore(run)
-    let badHeaderURL = temporaryFileURL(name: "results.csv")
-    do {
-        try FileManager.default.createDirectory(at: badHeaderURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try Data("date,speed\n".utf8).write(to: badHeaderURL)
-    } catch {
-        preconditionFailure("Could not write the fixture file: \(error)")
-    }
-    run.expectEqual(
-        importLegacyResults(fileURL: badHeaderURL, into: badHeaderStore),
-        .failure(.fileProblem(path: badHeaderURL.path, .headerMismatch(found: "date,speed"))),
-        "import fails on unknown columns",
-    )
-    run.expectEqual(badHeaderStore.isFlagSet(.legacyResultsImported), .success(false), "failed import tries again next time")
 }
 
 func checkTextFormatting(_ run: CheckRun) {

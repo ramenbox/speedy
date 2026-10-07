@@ -31,10 +31,6 @@ enum StoreError: Error, Equatable {
     }
 }
 
-enum StoreFlag: String {
-    case legacyResultsImported = "legacy_results_imported"
-}
-
 /// The test history in one SQLite file. Use it from one thread only.
 final class ResultStore {
     private let database: OpaquePointer
@@ -110,6 +106,7 @@ final class ResultStore {
                 error TEXT,
                 UNIQUE (started_at, computer_name)
             );
+            -- No code reads this table. It stays, so new and existing databases have the same schema.
             CREATE TABLE flags (name TEXT PRIMARY KEY);
             PRAGMA user_version = \(storeSchemaVersion);
             """
@@ -184,33 +181,9 @@ final class ResultStore {
         }
     }
 
-    /// Deletes all results. Flags stay, so the old results.csv is not imported again.
+    /// Deletes all results.
     func deleteAllResults() -> Result<Void, StoreError> {
         return execute("DELETE FROM test_results", action: "deleting the history")
-    }
-
-    func isFlagSet(_ flag: StoreFlag) -> Result<Bool, StoreError> {
-        return prepare("SELECT 1 FROM flags WHERE name = ?", action: "reading a flag").flatMap { statement in
-            sqlite3_bind_text(statement.pointer, 1, flag.rawValue, -1, sqliteTransient)
-            switch sqlite3_step(statement.pointer) {
-            case SQLITE_ROW:
-                return .success(true)
-            case SQLITE_DONE:
-                return .success(false)
-            default:
-                return .failure(lastError(action: "reading a flag"))
-            }
-        }
-    }
-
-    func setFlag(_ flag: StoreFlag) -> Result<Void, StoreError> {
-        return prepare("INSERT OR IGNORE INTO flags (name) VALUES (?)", action: "saving a flag").flatMap { statement in
-            sqlite3_bind_text(statement.pointer, 1, flag.rawValue, -1, sqliteTransient)
-            guard sqlite3_step(statement.pointer) == SQLITE_DONE else {
-                return .failure(lastError(action: "saving a flag"))
-            }
-            return .success(())
-        }
     }
 
     // MARK: Reading

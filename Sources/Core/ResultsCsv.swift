@@ -1,8 +1,7 @@
 import Foundation
 
-/// The columns of the CSV export. They are the same as in the results.csv of Office Speedtest.
+/// The columns of the CSV export.
 let resultsCsvHeader = "timestamp,computer_name,status,download_mbps,upload_mbps,responsiveness_rpm,base_rtt_ms,interface_type,interface_name,test_endpoint,error"
-let resultsCsvColumnCount = 11
 let csvStatusMeasured = "ok"
 let csvStatusFailed = "failed"
 

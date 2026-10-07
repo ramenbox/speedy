@@ -42,14 +42,12 @@ enum PanelNotice: Equatable {
 /// Where Speedy keeps its data and how it names this Mac.
 struct SpeedyEnvironment {
     let dataFolderURL: URL
-    let legacyResultsFileURL: URL
     let computerName: String
 
     static func standard() -> SpeedyEnvironment {
         let homeURL = FileManager.default.homeDirectoryForCurrentUser
         return SpeedyEnvironment(
             dataFolderURL: homeURL.appendingPathComponent("Library/Application Support/\(dataFolderName)", isDirectory: true),
-            legacyResultsFileURL: homeURL.appendingPathComponent("Documents/Office Speedtest/results.csv", isDirectory: false),
             computerName: readComputerName(),
         )
     }
@@ -106,7 +104,6 @@ final class SpeedyModel: ObservableObject {
     // MARK: Start and stop
 
     func start() {
-        importLegacyResultsIfNeeded()
         loadLatestTest()
         reloadHistory()
         refreshSystemStates()
@@ -131,22 +128,6 @@ final class SpeedyModel: ObservableObject {
         loginItemState = readLoginItemState()
         notifier.readPermission { [weak self] permission in
             self?.notificationPermission = permission
-        }
-    }
-
-    private func importLegacyResultsIfNeeded() {
-        guard case .open(let store) = storeState else {
-            return
-        }
-        switch importLegacyResults(fileURL: environment.legacyResultsFileURL, into: store) {
-        case .success(.alreadyImported), .success(.noLegacyFile):
-            return
-        case .success(.imported(let insertedCount, 0)):
-            notice = .information("Imported \(insertedCount) results from Office Speedtest.")
-        case .success(.imported(let insertedCount, let skippedRowCount)):
-            notice = .information("Imported \(insertedCount) results from Office Speedtest. Skipped \(skippedRowCount) unreadable rows.")
-        case .failure(let failure):
-            notice = .problem("\(failure.message) Speedy tries again at the next start.")
         }
     }
 

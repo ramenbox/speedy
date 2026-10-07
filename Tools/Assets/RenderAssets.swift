@@ -48,7 +48,6 @@ enum RenderAssets {
             .appendingPathComponent("speedy-assets-\(UUID().uuidString)", isDirectory: true)
         let environment = SpeedyEnvironment(
             dataFolderURL: temporaryURL,
-            legacyResultsFileURL: temporaryURL.appendingPathComponent("no-legacy-results.csv"),
             computerName: demoComputerName,
         )
         guard let defaults = UserDefaults(suiteName: "speedy-assets-demo") else {

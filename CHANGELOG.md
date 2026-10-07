@@ -3,6 +3,12 @@
 All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.0.1] - 2026-10-07
+
+### Removed
+
+- The one-time import of `~/Documents/Office Speedtest/results.csv`. Speedy no longer reads the Documents folder, so macOS does not ask for access to it.
+
 ## [1.0.0] - 2026-10-07
 
 ### Added
@@ -22,4 +28,5 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - One-time import of `~/Documents/Office Speedtest/results.csv`.
 - Checks for the core logic (`./checks.sh`).
 
+[1.0.1]: https://github.com/ramenbox/speedy/releases/tag/v1.0.1
 [1.0.0]: https://github.com/ramenbox/speedy/releases/tag/v1.0.0
