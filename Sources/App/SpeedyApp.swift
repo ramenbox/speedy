@@ -3,6 +3,9 @@ import Combine
 import SwiftUI
 
 let testAnimationFrameSeconds: TimeInterval = 0.4
+/// The panel fades in and out like the system menu bar panels, for example Wi-Fi.
+let panelFadeInSeconds: TimeInterval = 0.1
+let panelFadeOutSeconds: TimeInterval = 0.15
 let testAnimationSymbolNames = [
     "gauge.with.dots.needle.0percent",
     "gauge.with.dots.needle.33percent",
@@ -13,6 +16,12 @@ let testAnimationSymbolNames = [
     "gauge.with.dots.needle.50percent",
     "gauge.with.dots.needle.33percent",
 ]
+
+enum PanelFade {
+    case idle
+    /// The panel is open and fades out. It closes when the fade ends.
+    case fadingOut
+}
 
 @main
 enum SpeedyApp {
@@ -36,6 +45,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var scheduleSubscription: AnyCancellable?
     private var testAnimationTimer: Timer?
     private var testAnimationFrame = 0
+    private var panelFade: PanelFade = .idle
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -47,7 +57,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         hostingController.sizingOptions = [.preferredContentSize]
         popover.contentViewController = hostingController
         popover.behavior = .transient
-        // The open animation of a popover this large takes about 500 ms and stutters. Without it, the panel shows in under 10 ms.
+        // The open animation of a popover this large takes about 500 ms and stutters.
+        // Without it, the panel shows in under 10 ms. showPanel and fadeOutPanel add a short fade instead.
         popover.animates = false
         // The first layout of the panel and the chart takes about 70 ms. Doing it at launch keeps the first open fast.
         hostingController.view.layoutSubtreeIfNeeded()
@@ -67,16 +78,62 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         model.panelWillShow()
     }
 
+    /// A click outside the panel or the Escape key closes the panel. The panel fades out first.
+    func popoverShouldClose(_ popover: NSPopover) -> Bool {
+        fadeOutPanel()
+        return false
+    }
+
     @objc private func togglePanel() {
+        if popover.isShown {
+            fadeOutPanel()
+        } else {
+            showPanel()
+        }
+    }
+
+    private func showPanel() {
         guard let button = statusItem?.button else {
             return
         }
-        if popover.isShown {
-            popover.performClose(nil)
-        } else {
-            NSApp.activate(ignoringOtherApps: true)
-            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        NSApp.activate(ignoringOtherApps: true)
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        guard let panelWindow = popover.contentViewController?.view.window else {
+            return
         }
+        panelWindow.alphaValue = 0
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = panelFadeInSeconds
+            panelWindow.animator().alphaValue = 1
+        }
+    }
+
+    private func fadeOutPanel() {
+        switch panelFade {
+        case .fadingOut:
+            return
+        case .idle:
+            break
+        }
+        guard let panelWindow = popover.contentViewController?.view.window else {
+            popover.close()
+            return
+        }
+        panelFade = .fadingOut
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = panelFadeOutSeconds
+            panelWindow.animator().alphaValue = 0
+        } completionHandler: { [weak self] in
+            Task { @MainActor in
+                self?.finishFadeOut()
+            }
+        }
+    }
+
+    private func finishFadeOut() {
+        // close() does not ask popoverShouldClose again.
+        popover.close()
+        panelFade = .idle
     }
 
     private func refreshStatusIcon(schedule: TestSchedule) {

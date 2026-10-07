@@ -7,7 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
-- The panel opens without animation. It shows in under 10 ms, instead of a 500 ms animation that stutters.
+- The panel fades in (0.1 s) and out (0.15 s), like the system menu bar panels. This replaces the popover animation, which took 500 ms and stuttered.
 
 ### Removed
 
