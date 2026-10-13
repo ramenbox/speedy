@@ -37,13 +37,14 @@ func demoTestTimes(now: Date, calendar: Calendar) -> [Date] {
     }
 }
 
-/// A plausible office line: slower during office hours, a few failed tests.
+/// A plausible office line: slower during office hours on weekdays, a few failed tests.
 func makeDemoRecords(now: Date, calendar: Calendar) -> [TestRecord] {
     var random = DemoRandomSequence(seed: 20_260_917)
     let endpoints = ["defra1-edge-fx-028.aaplimg.com", "nlams2-edge-fx-020.aaplimg.com", "defra3-edge-bx-031.aaplimg.com"]
     return demoTestTimes(now: now, calendar: calendar).map { startedAt in
         let hour = calendar.component(.hour, from: startedAt)
-        let officeHoursLoad = (9...17).contains(hour) ? 0.72 : 1.0
+        let isWeekend = calendar.isDateInWeekend(startedAt)
+        let officeHoursLoad = (9...17).contains(hour) && !isWeekend ? 0.72 : 1.0
         guard random.nextUnit() > 0.012 else {
             return TestRecord(startedAt: startedAt, computerName: demoComputerName, result: .failed(message: "No internet connection"))
         }

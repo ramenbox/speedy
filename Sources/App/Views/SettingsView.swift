@@ -10,6 +10,18 @@ struct SettingsView: View {
                     Text(interval.label).tag(interval)
                 }
             }
+            Toggle("Skip tests on metered networks", isOn: Binding(get: { model.skipsMeteredNetworks }, set: model.setSkipsMeteredNetworks))
+                .help("A test uses several hundred MB on a fast line. Scheduled tests do not run on a metered network, for example an iPhone hotspot, or with Low Data Mode. \"Run now\" always runs.")
+            HStack {
+                Text("Contract download speed")
+                Spacer()
+                TextField("Not set", value: Binding(get: { contractMegabitsPerSecond }, set: model.setContractMegabitsPerSecond), format: .number)
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 70)
+                Text("Mbps")
+                    .foregroundStyle(.secondary)
+            }
+            .help("The download speed of your internet contract. The history compares the measured download with it. Leave it empty to turn it off.")
 
             Picker("Slow download alert", selection: Binding(get: { model.slowDownloadAlert }, set: model.selectSlowDownloadAlert)) {
                 ForEach(SlowDownloadAlert.allCases) { alert in
@@ -20,6 +32,7 @@ struct SettingsView: View {
             notificationPermissionNote
 
             Divider()
+            Toggle("Show download speed in the menu bar", isOn: Binding(get: { model.showsSpeedInMenuBar }, set: model.setShowsSpeedInMenuBar))
             Toggle("Start at login", isOn: Binding(get: { loginItemIsOn }, set: { _ in model.toggleStartAtLogin() }))
             loginItemNote
 
@@ -32,6 +45,13 @@ struct SettingsView: View {
                 Spacer()
                 Button("Delete history…", role: .destructive, action: model.deleteHistory)
             }
+        }
+    }
+
+    private var contractMegabitsPerSecond: Int? {
+        switch model.contractSpeed {
+        case .notSet: return nil
+        case .megabitsPerSecond(let megabitsPerSecond): return megabitsPerSecond
         }
     }
 

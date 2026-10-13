@@ -34,11 +34,13 @@ enum RenderAssets {
         let historyLight = try renderPanel(model: model, page: .history, range: .lastSevenDays, appearanceName: .aqua)
         let historyDark = try renderPanel(model: model, page: .history, range: .lastSevenDays, appearanceName: .darkAqua)
         let settingsDark = try renderPanel(model: model, page: .settings, range: .lastSevenDays, appearanceName: .darkAqua)
+        let weeklyPatternDark = try renderPanel(model: model, page: .weeklyPattern, range: .lastSevenDays, appearanceName: .darkAqua)
         try writePng(historyLight, to: imagesURL.appendingPathComponent("panel-light.png"))
         try writePng(historyDark, to: imagesURL.appendingPathComponent("panel-dark.png"))
         try writePng(settingsDark, to: imagesURL.appendingPathComponent("settings-dark.png"))
+        try writePng(weeklyPatternDark, to: imagesURL.appendingPathComponent("week-dark.png"))
 
-        let hero = try drawHero(leftPanel: historyLight, rightPanel: settingsDark)
+        let hero = try drawHero(leftPanel: historyLight, rightPanel: weeklyPatternDark)
         try writePng(hero, to: imagesURL.appendingPathComponent("hero.png"))
     }
 
@@ -57,6 +59,7 @@ enum RenderAssets {
         defaults.set(TestInterval.thirtyMinutes.rawValue, forKey: "testInterval")
         defaults.set(SlowDownloadAlert.below50Megabits.rawValue, forKey: "slowDownloadAlert")
         defaults.set(true, forKey: "alertsOnFailedTest")
+        defaults.set(250, forKey: "contractMegabitsPerSecond")
 
         let model = SpeedyModel(settings: SettingsStorage(defaults: defaults), environment: environment)
         let records = makeDemoRecords(now: Date(), calendar: .current)

@@ -43,6 +43,9 @@ enum SpeedyChecks {
         checkHistoryRange(run)
         checkStore(run)
         checkTextFormatting(run)
+        checkScheduledTestDecision(run)
+        checkContractComparison(run)
+        checkWeeklyPattern(run)
         for failure in run.failures {
             print("FAIL \(failure)")
         }
@@ -186,6 +189,7 @@ func checkSummary(_ run: CheckRun) {
         run.expectEqual(summary.measuredCount, 2, "summary counts measured tests")
         run.expectEqual(summary.failedCount, 1, "summary counts failed tests")
         run.expectEqual(summary.download, ValueSpread(average: 75, minimum: 60, maximum: 90), "summary spreads download")
+        run.expectEqual(summary.responsiveness, ValueSpread(average: 500, minimum: 500, maximum: 500), "summary spreads responsiveness")
     case .noTests, .onlyFailures:
         run.expect(false, "summary with measurements is measured")
     }
@@ -260,4 +264,63 @@ func checkTextFormatting(_ run: CheckRun) {
     run.expectEqual(formatElapsedTime(7.9), "0:07", "elapsed time drops the fraction")
     run.expectEqual(formatElapsedTime(65), "1:05", "elapsed time over one minute")
     run.expectEqual(formatElapsedTime(-3), "0:00", "negative elapsed time")
+}
+
+// MARK: - Scheduled test decision
+
+func checkScheduledTestDecision(_ run: CheckRun) {
+    run.expectEqual(decideScheduledTest(networkCost: .unrestricted, skipsMeteredNetworks: true), .run, "unrestricted network runs")
+    run.expectEqual(decideScheduledTest(networkCost: .expensive, skipsMeteredNetworks: true), .skip(.meteredNetwork), "metered network skips")
+    run.expectEqual(decideScheduledTest(networkCost: .constrained, skipsMeteredNetworks: true), .skip(.lowDataMode), "Low Data Mode skips")
+    run.expectEqual(decideScheduledTest(networkCost: .expensive, skipsMeteredNetworks: false), .run, "metered network runs when the setting is off")
+    run.expectEqual(decideScheduledTest(networkCost: .constrained, skipsMeteredNetworks: false), .run, "Low Data Mode runs when the setting is off")
+}
+
+// MARK: - Contract
+
+func checkContractComparison(_ run: CheckRun) {
+    run.expectEqual(
+        compareToContract(download: ValueSpread(average: 125, minimum: 50, maximum: 240), contractMegabitsPerSecond: 250),
+        ContractComparison(contractMegabitsPerSecond: 250, averagePercent: 50, minimumPercent: 20),
+        "contract comparison in percent",
+    )
+    run.expectEqual(ContractSpeed(storedMegabitsPerSecond: 0), .notSet, "stored 0 is no contract")
+    run.expectEqual(ContractSpeed(storedMegabitsPerSecond: -5), .notSet, "stored negative is no contract")
+    run.expectEqual(ContractSpeed(storedMegabitsPerSecond: 250), .megabitsPerSecond(250), "stored contract speed")
+    run.expectEqual(ContractSpeed.megabitsPerSecond(250).storedMegabitsPerSecond, 250, "contract speed stores its value")
+}
+
+// MARK: - Weekly pattern
+
+func checkWeeklyPattern(_ run: CheckRun) {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone.current
+    run.expectEqual(makeWeeklyPattern([], calendar: calendar), .noMeasurements, "pattern of nothing")
+    let failedOnly = [TestRecord(startedAt: timestamp("2026-09-10 10:00:00"), computerName: "Mac", result: .failed(message: "offline"))]
+    run.expectEqual(makeWeeklyPattern(failedOnly, calendar: calendar), .noMeasurements, "pattern ignores failed tests")
+
+    // 2026-09-10 is a Thursday (weekday 5) and 2026-09-11 is a Friday (weekday 6).
+    let records = [
+        TestRecord(startedAt: timestamp("2026-09-10 10:00:00"), computerName: "Mac", result: .measured(measurement(downloadMegabitsPerSecond: 100))),
+        TestRecord(startedAt: timestamp("2026-09-10 10:30:00"), computerName: "Mac", result: .measured(measurement(downloadMegabitsPerSecond: 50))),
+        TestRecord(startedAt: timestamp("2026-09-10 10:45:00"), computerName: "Mac", result: .failed(message: "offline")),
+        TestRecord(startedAt: timestamp("2026-09-11 22:00:00"), computerName: "Mac", result: .measured(measurement(downloadMegabitsPerSecond: 200))),
+    ]
+    run.expectEqual(
+        makeWeeklyPattern(records, calendar: calendar),
+        .measured(
+            averages: [
+                WeekdayHour(weekday: 5, hour: 10): HourlyAverage(averageDownloadMegabitsPerSecond: 75, measuredCount: 2),
+                WeekdayHour(weekday: 6, hour: 22): HourlyAverage(averageDownloadMegabitsPerSecond: 200, measuredCount: 1),
+            ],
+            slowest: 75,
+            fastest: 200,
+        ),
+        "pattern averages each weekday and hour",
+    )
+
+    run.expectEqual(speedLevel(10, slowest: 10, fastest: 60, levelCount: 5), 0, "slowest speed is level 0")
+    run.expectEqual(speedLevel(60, slowest: 10, fastest: 60, levelCount: 5), 4, "fastest speed is the top level")
+    run.expectEqual(speedLevel(35, slowest: 10, fastest: 60, levelCount: 5), 2, "middle speed is the middle level")
+    run.expectEqual(speedLevel(42, slowest: 42, fastest: 42, levelCount: 5), 2, "equal speeds are the middle level")
 }

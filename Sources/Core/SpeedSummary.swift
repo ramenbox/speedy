@@ -12,6 +12,24 @@ struct SpeedSummary: Equatable {
     let download: ValueSpread
     let upload: ValueSpread
     let ping: ValueSpread
+    let responsiveness: ValueSpread
+}
+
+/// The measured download compared with the speed of the internet contract.
+struct ContractComparison: Equatable {
+    let contractMegabitsPerSecond: Double
+    let averagePercent: Double
+    let minimumPercent: Double
+}
+
+/// Pure: the average and minimum download as a percentage of the contract speed.
+func compareToContract(download: ValueSpread, contractMegabitsPerSecond: Double) -> ContractComparison {
+    precondition(contractMegabitsPerSecond > 0, "The contract speed must be above 0")
+    return ContractComparison(
+        contractMegabitsPerSecond: contractMegabitsPerSecond,
+        averagePercent: download.average / contractMegabitsPerSecond * 100,
+        minimumPercent: download.minimum / contractMegabitsPerSecond * 100,
+    )
 }
 
 enum RangeSummary: Equatable {
@@ -42,6 +60,7 @@ func summarize(_ records: [TestRecord]) -> RangeSummary {
         download: spread(first: firstMeasurement.downloadMegabitsPerSecond, others: otherMeasurements.map(\.downloadMegabitsPerSecond)),
         upload: spread(first: firstMeasurement.uploadMegabitsPerSecond, others: otherMeasurements.map(\.uploadMegabitsPerSecond)),
         ping: spread(first: firstMeasurement.baseRoundTripTimeMilliseconds, others: otherMeasurements.map(\.baseRoundTripTimeMilliseconds)),
+        responsiveness: spread(first: firstMeasurement.responsivenessRoundTripsPerMinute, others: otherMeasurements.map(\.responsivenessRoundTripsPerMinute)),
     ))
 }
 

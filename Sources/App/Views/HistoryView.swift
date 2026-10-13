@@ -39,8 +39,8 @@ struct HistoryView: View {
                 .foregroundStyle(.red)
             RecentTestsView(records: records)
         case .loaded(let records, .measured(let summary)):
-            SpeedChartView(records: records)
-            SummaryView(summary: summary)
+            SpeedChartView(records: records, contractSpeed: model.contractSpeed)
+            SummaryView(summary: summary, contractSpeed: model.contractSpeed)
             RecentTestsView(records: records)
         }
     }
@@ -61,12 +61,24 @@ struct SpeedPoint: Identifiable {
 
 struct SpeedChartView: View {
     let records: [TestRecord]
+    let contractSpeed: ContractSpeed
 
     var body: some View {
         Chart {
             ForEach(failureTimes, id: \.self) { startedAt in
                 RuleMark(x: .value("Time", startedAt))
                     .foregroundStyle(Color.red.opacity(0.35))
+            }
+            // Chart content has no empty mark, so this is an "if case" and not a switch.
+            if case .megabitsPerSecond(let megabitsPerSecond) = contractSpeed {
+                RuleMark(y: .value("Contract", megabitsPerSecond))
+                    .foregroundStyle(Color.secondary)
+                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                    .annotation(position: .top, alignment: .leading) {
+                        Text("Contract \(megabitsPerSecond)")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
             }
             ForEach(points) { point in
                 LineMark(
@@ -114,6 +126,7 @@ struct SpeedChartView: View {
 
 struct SummaryView: View {
     let summary: SpeedSummary
+    let contractSpeed: ContractSpeed
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -129,10 +142,26 @@ struct SummaryView: View {
                 spreadRow(title: "Download Mbps", spread: summary.download, format: formatOneDecimal)
                 spreadRow(title: "Upload Mbps", spread: summary.upload, format: formatOneDecimal)
                 spreadRow(title: "Ping ms", spread: summary.ping, format: formatNoDecimals)
+                spreadRow(title: "Responsiveness RPM", spread: summary.responsiveness, format: formatNoDecimals)
+                    .help("Round trips per minute while the line is busy. Higher is better. A low value means lag in calls and games.")
             }
+            contractText
             Text(countText)
                 .font(.caption)
                 .foregroundStyle(summary.failedCount == 0 ? Color.secondary : Color.red)
+        }
+    }
+
+    @ViewBuilder
+    private var contractText: some View {
+        switch contractSpeed {
+        case .notSet:
+            EmptyView()
+        case .megabitsPerSecond(let megabitsPerSecond):
+            let comparison = compareToContract(download: summary.download, contractMegabitsPerSecond: Double(megabitsPerSecond))
+            Text("Download: average \(formatNoDecimals(comparison.averagePercent)) %, lowest \(formatNoDecimals(comparison.minimumPercent)) % of the \(megabitsPerSecond) Mbps contract")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -182,18 +211,23 @@ struct RecentTestRow: View {
     let record: TestRecord
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             Text(describeTestTime(record.startedAt))
                 .foregroundStyle(.secondary)
-                .frame(width: 92, alignment: .leading)
+                .frame(width: 88, alignment: .leading)
             switch record.result {
             case .measured(let measurement):
                 Text("↓ \(formatOneDecimal(measurement.downloadMegabitsPerSecond))")
-                    .frame(width: 64, alignment: .leading)
+                    .frame(width: 56, alignment: .leading)
                 Text("↑ \(formatOneDecimal(measurement.uploadMegabitsPerSecond))")
-                    .frame(width: 64, alignment: .leading)
+                    .frame(width: 56, alignment: .leading)
                 Text("\(formatNoDecimals(measurement.baseRoundTripTimeMilliseconds)) ms")
                     .foregroundStyle(.secondary)
+                    .frame(width: 42, alignment: .leading)
+                Text("\(formatNoDecimals(measurement.responsivenessRoundTripsPerMinute)) RPM")
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .fixedSize()
             case .failed(let message):
                 Text(message)
                     .foregroundStyle(.red)

@@ -45,8 +45,12 @@ One click on the menu bar icon shows the trend, the averages, and each failed te
 |  |  |
 | --- | --- |
 | 📈 **History in the menu bar** | Chart of download and upload for today, 7 days, 30 days, or all time. Failed tests show as red markers. |
-| 📊 **Statistics** | Average, minimum and maximum of download, upload and ping for the selected range. |
+| 📊 **Statistics** | Average, minimum and maximum of download, upload, ping and responsiveness for the selected range. |
+| 🗓️ **Weekly pattern** | Average download for each weekday and hour of the last 30 days, with the slowest and fastest hour. |
+| 📝 **Contract speed** | Enter the speed you pay for. The chart and the statistics compare each range with it. |
 | ⏱️ **Schedule** | A test every 15, 30 or 60 minutes. Pause, resume, or run a test now. |
+| 📱 **Metered networks** | Scheduled tests skip a metered network, for example an iPhone hotspot, and Low Data Mode. |
+| 🔢 **Speed in the menu bar** | Optional: the last download speed next to the icon. |
 | 🔔 **Alerts** | A notification when the download speed falls below your limit, or when a test fails. One alert per change, not one per test. |
 | 📤 **CSV export** | Export today, 7 days, 30 days or everything to a CSV file for Numbers or Excel. |
 | 🚀 **Start at login** | Uses the macOS login item service. |
@@ -56,6 +60,7 @@ One click on the menu bar icon shows the trend, the averages, and each failed te
   <tr>
     <td align="center"><img src="docs/images/panel-light.png" alt="Panel, 7 days, light mode" width="260" /><br /><sub>7 days, light</sub></td>
     <td align="center"><img src="docs/images/panel-dark.png" alt="Panel, 7 days, dark mode" width="260" /><br /><sub>7 days, dark</sub></td>
+    <td align="center"><img src="docs/images/week-dark.png" alt="Weekly pattern, dark mode" width="260" /><br /><sub>Week</sub></td>
     <td align="center"><img src="docs/images/settings-dark.png" alt="Settings, dark mode" width="260" /><br /><sub>Settings</sub></td>
   </tr>
 </table>
@@ -78,11 +83,12 @@ One click on the menu bar icon shows the trend, the averages, and each failed te
 
 Click the gauge icon in the menu bar. The panel shows:
 
-- the status at the top right: the time of the next test, the running test with its elapsed time, **Paused**, or why tests stopped,
+- the status at the top right: the time of the next test, the running test with its elapsed time, a skipped test, **Paused**, or why tests stopped,
 - the last result: download, upload and ping,
-- the **History** and **Settings** tabs.
+- the **History**, **Week** and **Settings** tabs.
 
 The **History** tab shows the range picker, the chart, the statistics and the tests in the range, newest first.
+The **Week** tab shows the average download for each weekday and hour of the last 30 days. Darker is faster. Hold the pointer over a cell to see its value.
 
 The bar at the bottom has **Pause / Resume**, **Run now** and a **⋯** menu with **Export CSV** and **Quit Speedy** (⌘Q).
 
@@ -98,8 +104,11 @@ The bar at the bottom has **Pause / Resume**, **Run now** and a **⋯** menu wit
 | Setting | What it does |
 | --- | --- |
 | Tests | The interval between two tests: 15, 30 or 60 minutes. |
+| Skip tests on metered networks | On by default. A scheduled test does not run on a network that macOS marks as metered or with Low Data Mode. **Run now** always runs. |
+| Contract download speed | The download speed you pay for, in Mbps. Empty turns the comparison off. |
 | Slow download alert | Off, or a notification below 10, 25, 50 or 100 Mbps. |
 | Alert when a test fails | A notification when no test was possible, for example with no internet connection. |
+| Show download speed in the menu bar | Shows the last download speed in Mbps next to the icon, or `–` after a failed test. |
 | Start at login | Registers Speedy as a login item. |
 | Show data in Finder | Opens the folder with the database. |
 | Delete history | Removes all stored results after a confirmation. You cannot undo this. |

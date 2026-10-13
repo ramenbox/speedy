@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import Network
 import SystemConfiguration
 
 let dataFolderName = "Speedy"
@@ -8,6 +9,8 @@ let databaseFileName = "speedy.sqlite"
 let historyMaximumRecordCount = 20_000
 let exportMaximumRecordCount = 1_000_000
 let nextTestTimerToleranceSeconds: TimeInterval = 10
+/// The first test waits this long, so the network monitor can report the network cost first.
+let firstTestDelaySeconds: TimeInterval = 1
 
 enum AfterTest: Equatable {
     case continueSchedule
@@ -31,6 +34,23 @@ enum LatestTest: Equatable {
 enum HistoryState: Equatable {
     case unavailable(message: String)
     case loaded(records: [TestRecord], summary: RangeSummary)
+}
+
+enum WeeklyPatternState: Equatable {
+    case unavailable(message: String)
+    case loaded(WeeklyPattern)
+}
+
+enum SkippedTest: Equatable {
+    case none
+    /// The last scheduled test did not run. The schedule continues.
+    case skipped(at: Date, reason: SkipReason)
+}
+
+enum NetworkState: Equatable {
+    /// The network monitor has not reported yet.
+    case notYetKnown
+    case known(NetworkCost)
 }
 
 enum PanelNotice: Equatable {
@@ -71,6 +91,11 @@ final class SpeedyModel: ObservableObject {
     @Published private(set) var alertsOnFailedTest: Bool
     @Published private(set) var loginItemState: LoginItemState = .disabled
     @Published private(set) var notificationPermission: NotificationPermission = .notAsked
+    @Published private(set) var weeklyPattern: WeeklyPatternState = .loaded(.noMeasurements)
+    @Published private(set) var skippedTest: SkippedTest = .none
+    @Published private(set) var skipsMeteredNetworks: Bool
+    @Published private(set) var contractSpeed: ContractSpeed
+    @Published private(set) var showsSpeedInMenuBar: Bool
 
     let environment: SpeedyEnvironment
     private let storeState: StoreState
@@ -79,6 +104,8 @@ final class SpeedyModel: ObservableObject {
     private var currentRunner: NetworkQualityRunner?
     private var nextTestTimer: Timer?
     private var sleepPreventionActivity: NSObjectProtocol?
+    private let networkMonitor = NWPathMonitor()
+    private var networkState: NetworkState = .notYetKnown
 
     init(settings: SettingsStorage, environment: SpeedyEnvironment) {
         self.settings = settings
@@ -86,6 +113,9 @@ final class SpeedyModel: ObservableObject {
         testInterval = settings.testInterval
         slowDownloadAlert = settings.slowDownloadAlert
         alertsOnFailedTest = settings.alertsOnFailedTest
+        skipsMeteredNetworks = settings.skipsMeteredNetworks
+        contractSpeed = settings.contractSpeed
+        showsSpeedInMenuBar = settings.showsSpeedInMenuBar
         switch ResultStore.open(fileURL: environment.dataFolderURL.appendingPathComponent(databaseFileName, isDirectory: false)) {
         case .success(let store):
             storeState = .open(store)
@@ -104,6 +134,7 @@ final class SpeedyModel: ObservableObject {
     // MARK: Start and stop
 
     func start() {
+        startNetworkMonitor()
         loadLatestTest()
         reloadHistory()
         refreshSystemStates()
@@ -124,6 +155,16 @@ final class SpeedyModel: ObservableObject {
         refreshSystemStates()
     }
 
+    private func startNetworkMonitor() {
+        networkMonitor.pathUpdateHandler = { [weak self] path in
+            let networkCost = readNetworkCost(path)
+            Task { @MainActor in
+                self?.networkState = .known(networkCost)
+            }
+        }
+        networkMonitor.start(queue: .main)
+    }
+
     private func refreshSystemStates() {
         loginItemState = readLoginItemState()
         notifier.readPermission { [weak self] permission in
@@ -141,7 +182,8 @@ final class SpeedyModel: ObservableObject {
         }
         switch storeState {
         case .open:
-            startTest(afterTest: .continueSchedule)
+            preventIdleSleep()
+            scheduleTest(at: Date().addingTimeInterval(firstTestDelaySeconds))
         case .unavailable(let message):
             stopTests(reason: message)
         }
@@ -152,6 +194,7 @@ final class SpeedyModel: ObservableObject {
         nextTestTimer = nil
         preventIdleSleep()
         let startedAt = Date()
+        skippedTest = .none
         let runner = NetworkQualityRunner()
         currentRunner = runner
         schedule = .testRunning(startedAt: startedAt, afterTest: afterTest)
@@ -225,7 +268,10 @@ final class SpeedyModel: ObservableObject {
     }
 
     private func scheduleNextTest(previousTestStartedAt: Date) {
-        let nextTestAt = max(previousTestStartedAt.addingTimeInterval(testInterval.seconds), Date().addingTimeInterval(1))
+        scheduleTest(at: max(previousTestStartedAt.addingTimeInterval(testInterval.seconds), Date().addingTimeInterval(1)))
+    }
+
+    private func scheduleTest(at nextTestAt: Date) {
         nextTestTimer?.invalidate()
         let timer = Timer(fire: nextTestAt, interval: 0, repeats: false) { [weak self] _ in
             Task { @MainActor in
@@ -242,7 +288,18 @@ final class SpeedyModel: ObservableObject {
         guard case .waiting = schedule else {
             return
         }
-        startTest(afterTest: .continueSchedule)
+        switch networkState {
+        case .notYetKnown:
+            scheduleTest(at: Date().addingTimeInterval(firstTestDelaySeconds))
+        case .known(let networkCost):
+            switch decideScheduledTest(networkCost: networkCost, skipsMeteredNetworks: skipsMeteredNetworks) {
+            case .run:
+                startTest(afterTest: .continueSchedule)
+            case .skip(let reason):
+                skippedTest = .skipped(at: Date(), reason: reason)
+                scheduleNextTest(previousTestStartedAt: Date())
+            }
+        }
     }
 
     private func stopTests(reason: String) {
@@ -310,6 +367,7 @@ final class SpeedyModel: ObservableObject {
         case .testRunning(_, .continueSchedule), .waiting:
             settings.testsPaused = true
             haltTests()
+            skippedTest = .none
             schedule = .paused
         case .testRunning(let startedAt, .returnToPause):
             // The running test finishes and the schedule continues after it.
@@ -345,6 +403,12 @@ final class SpeedyModel: ObservableObject {
             history = .loaded(records: records, summary: summarize(records))
         case .failure(let error):
             history = .unavailable(message: error.message)
+        }
+        switch loadRecords(range: weeklyPatternRange, maximumCount: historyMaximumRecordCount) {
+        case .success(let records):
+            weeklyPattern = .loaded(makeWeeklyPattern(records, calendar: .current))
+        case .failure(let error):
+            weeklyPattern = .unavailable(message: error.message)
         }
     }
 
@@ -465,6 +529,23 @@ final class SpeedyModel: ObservableObject {
         }
     }
 
+    func setSkipsMeteredNetworks(_ isOn: Bool) {
+        settings.skipsMeteredNetworks = isOn
+        skipsMeteredNetworks = isOn
+    }
+
+    /// nil or 0 removes the contract speed.
+    func setContractMegabitsPerSecond(_ megabitsPerSecond: Int?) {
+        let speed = ContractSpeed(storedMegabitsPerSecond: megabitsPerSecond ?? 0)
+        settings.contractSpeed = speed
+        contractSpeed = speed
+    }
+
+    func setShowsSpeedInMenuBar(_ isOn: Bool) {
+        settings.showsSpeedInMenuBar = isOn
+        showsSpeedInMenuBar = isOn
+    }
+
     func openLoginItemSettings() {
         openSystemSettings(urlText: "x-apple.systempreferences:com.apple.LoginItems-Settings.extension")
     }
@@ -484,6 +565,20 @@ final class SpeedyModel: ObservableObject {
             preconditionFailure("Invalid System Settings URL \(urlText)")
         }
         NSWorkspace.shared.open(url)
+    }
+}
+
+/// The weekly pattern uses the last 30 days, independent of the range of the history tab.
+let weeklyPatternRange = HistoryRange.lastThirtyDays
+
+func readNetworkCost(_ path: NWPath) -> NetworkCost {
+    switch (path.isConstrained, path.isExpensive) {
+    case (true, _):
+        return .constrained
+    case (false, true):
+        return .expensive
+    case (false, false):
+        return .unrestricted
     }
 }
 

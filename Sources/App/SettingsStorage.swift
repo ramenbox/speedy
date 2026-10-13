@@ -7,6 +7,9 @@ struct SettingsStorage {
         case testInterval
         case slowDownloadAlert
         case alertsOnFailedTest
+        case skipsMeteredNetworks
+        case contractMegabitsPerSecond
+        case showsSpeedInMenuBar
     }
 
     let defaults: UserDefaults
@@ -29,5 +32,21 @@ struct SettingsStorage {
     var alertsOnFailedTest: Bool {
         get { defaults.bool(forKey: Key.alertsOnFailedTest.rawValue) }
         nonmutating set { defaults.set(newValue, forKey: Key.alertsOnFailedTest.rawValue) }
+    }
+
+    /// On when nothing is saved: a test on a metered network can cost money.
+    var skipsMeteredNetworks: Bool {
+        get { defaults.object(forKey: Key.skipsMeteredNetworks.rawValue) as? Bool ?? true }
+        nonmutating set { defaults.set(newValue, forKey: Key.skipsMeteredNetworks.rawValue) }
+    }
+
+    var contractSpeed: ContractSpeed {
+        get { ContractSpeed(storedMegabitsPerSecond: defaults.integer(forKey: Key.contractMegabitsPerSecond.rawValue)) }
+        nonmutating set { defaults.set(newValue.storedMegabitsPerSecond, forKey: Key.contractMegabitsPerSecond.rawValue) }
+    }
+
+    var showsSpeedInMenuBar: Bool {
+        get { defaults.bool(forKey: Key.showsSpeedInMenuBar.rawValue) }
+        nonmutating set { defaults.set(newValue, forKey: Key.showsSpeedInMenuBar.rawValue) }
     }
 }

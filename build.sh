@@ -11,7 +11,7 @@ readonly app_zip="${build_directory}/Speedy.zip"
 readonly executable_name="Speedy"
 readonly bundle_identifier="io.github.ramenbox.speedy"
 readonly minimum_macos_version="13.0"
-readonly app_version="1.0.1"
+readonly app_version="1.1.0"
 
 print_error() {
   local -r message=$1

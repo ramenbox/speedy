@@ -4,6 +4,7 @@ let headerMessageMaximumCharacters = 120
 
 struct HeaderView: View {
     let schedule: TestSchedule
+    let skippedTest: SkippedTest
     let latestTest: LatestTest
 
     var body: some View {
@@ -12,7 +13,7 @@ struct HeaderView: View {
                 Text("Speedy")
                     .font(.headline)
                 Spacer()
-                ScheduleStatusView(schedule: schedule)
+                ScheduleStatusView(schedule: schedule, skippedTest: skippedTest)
             }
             LatestTestView(latestTest: latestTest)
         }
@@ -22,6 +23,7 @@ struct HeaderView: View {
 /// A coloured label that shows if tests are active, running, paused or stopped.
 struct ScheduleStatusView: View {
     let schedule: TestSchedule
+    let skippedTest: SkippedTest
 
     var body: some View {
         HStack(spacing: 5) {
@@ -39,17 +41,20 @@ struct ScheduleStatusView: View {
 
     @ViewBuilder
     private var indicator: some View {
-        switch schedule {
-        case .waiting:
+        switch (schedule, skippedTest) {
+        case (.waiting, .skipped):
+            Image(systemName: "forward.fill")
+                .font(.caption2)
+        case (.waiting, .none):
             Circle()
                 .frame(width: 7, height: 7)
-        case .testRunning:
+        case (.testRunning, _):
             ProgressView()
                 .controlSize(.mini)
-        case .paused:
+        case (.paused, _):
             Image(systemName: "pause.fill")
                 .font(.caption2)
-        case .stopped:
+        case (.stopped, _):
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.caption2)
         }
@@ -57,43 +62,49 @@ struct ScheduleStatusView: View {
 
     @ViewBuilder
     private var label: some View {
-        switch schedule {
-        case .waiting(let nextTestAt):
+        switch (schedule, skippedTest) {
+        case (.waiting(let nextTestAt), .skipped):
+            Text("Skipped · next \(clockTimeFormatter.string(from: nextTestAt))")
+        case (.waiting(let nextTestAt), .none):
             Text("Next test at \(clockTimeFormatter.string(from: nextTestAt))")
-        case .testRunning(let startedAt, _):
+        case (.testRunning(let startedAt, _), _):
             TimelineView(.periodic(from: startedAt, by: 1)) { timeline in
                 Text("Testing… \(formatElapsedTime(timeline.date.timeIntervalSince(startedAt)))")
                     .monospacedDigit()
             }
-        case .paused:
+        case (.paused, _):
             Text("Paused")
-        case .stopped(let reason):
+        case (.stopped(let reason), _):
             Text("Stopped: \(truncate(reason, maximumCharacters: 32))")
         }
     }
 
     private var tint: Color {
-        switch schedule {
-        case .waiting:
+        switch (schedule, skippedTest) {
+        case (.waiting, .skipped):
+            return .orange
+        case (.waiting, .none):
             return .green
-        case .testRunning:
+        case (.testRunning, _):
             return .blue
-        case .paused:
+        case (.paused, _):
             return .secondary
-        case .stopped:
+        case (.stopped, _):
             return .red
         }
     }
 
     private var help: String {
-        switch schedule {
-        case .waiting:
+        switch (schedule, skippedTest) {
+        case (.waiting, .skipped(let skippedAt, let reason)):
+            return "The test at \(clockTimeFormatter.string(from: skippedAt)) was skipped: \(reason.label). Change this in Settings."
+        case (.waiting, .none):
             return "Tests are active."
-        case .testRunning:
+        case (.testRunning, _):
             return "A test is running. It takes about 20 seconds."
-        case .paused:
+        case (.paused, _):
             return "Tests are paused. Click Resume to start them again."
-        case .stopped(let reason):
+        case (.stopped(let reason), _):
             return reason
         }
     }

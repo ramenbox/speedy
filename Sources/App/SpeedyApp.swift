@@ -43,6 +43,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private let popover = NSPopover()
     private var statusItem: NSStatusItem?
     private var scheduleSubscription: AnyCancellable?
+    private var menuBarSpeedSubscription: AnyCancellable?
+    /// The text next to the menu bar icon. Empty when the setting is off.
+    private var menuBarSpeedText = ""
     private var testAnimationTimer: Timer?
     private var testAnimationFrame = 0
     private var panelFade: PanelFade = .idle
@@ -64,6 +67,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         hostingController.view.layoutSubtreeIfNeeded()
         popover.delegate = self
 
+        // A @Published value sends the new value before the property changes, so each sink uses the values it receives.
+        menuBarSpeedSubscription = model.$latestTest.combineLatest(model.$showsSpeedInMenuBar).sink { [weak self] latestTest, showsSpeedInMenuBar in
+            self?.refreshMenuBarSpeed(latestTest: latestTest, showsSpeedInMenuBar: showsSpeedInMenuBar)
+        }
         scheduleSubscription = model.$schedule.sink { [weak self] schedule in
             self?.refreshStatusIcon(schedule: schedule)
         }
@@ -178,6 +185,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         showStatusSymbol(symbol, appearsDisabled: false)
     }
 
+    private func refreshMenuBarSpeed(latestTest: LatestTest, showsSpeedInMenuBar: Bool) {
+        menuBarSpeedText = describeMenuBarSpeed(latestTest: latestTest, showsSpeedInMenuBar: showsSpeedInMenuBar)
+        guard let button = statusItem?.button else {
+            return
+        }
+        button.imagePosition = .imageLeading
+        button.font = NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
+        button.title = menuBarTitle(hasImage: button.image != nil)
+    }
+
+    /// Without a symbol image the button shows the name, so the menu bar item is never empty.
+    private func menuBarTitle(hasImage: Bool) -> String {
+        switch (hasImage, menuBarSpeedText.isEmpty) {
+        case (true, _):
+            return menuBarSpeedText
+        case (false, true):
+            return "Speedy"
+        case (false, false):
+            return "Speedy \(menuBarSpeedText)"
+        }
+    }
+
     private func statusIconAppearsDisabled(schedule: TestSchedule) -> Bool {
         switch schedule {
         case .paused:
@@ -194,11 +223,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         if let image = NSImage(systemSymbolName: symbol.name, accessibilityDescription: symbol.description) {
             image.isTemplate = true
             button.image = image
-            button.title = ""
         } else {
             button.image = nil
-            button.title = "Speedy"
         }
+        button.title = menuBarTitle(hasImage: button.image != nil)
         button.appearsDisabled = appearsDisabled
         button.toolTip = symbol.description
     }
@@ -229,6 +257,21 @@ struct StatusSymbol {
         case .stopped:
             name = "exclamationmark.triangle"
             description = "Speedy: stopped"
+        }
+    }
+}
+
+/// "142" for the last download in Mbps, "–" after a failed test, "" when the setting is off or no test ran yet.
+func describeMenuBarSpeed(latestTest: LatestTest, showsSpeedInMenuBar: Bool) -> String {
+    switch (showsSpeedInMenuBar, latestTest) {
+    case (false, _), (true, .noTestYet):
+        return ""
+    case (true, .finished(let record)):
+        switch record.result {
+        case .measured(let measurement):
+            return formatNoDecimals(measurement.downloadMegabitsPerSecond)
+        case .failed:
+            return "–"
         }
     }
 }

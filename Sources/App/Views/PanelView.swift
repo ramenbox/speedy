@@ -4,11 +4,13 @@ let panelWidth: CGFloat = 380
 
 enum PanelPage: Hashable, CaseIterable {
     case history
+    case weeklyPattern
     case settings
 
     var title: String {
         switch self {
         case .history: return "History"
+        case .weeklyPattern: return "Week"
         case .settings: return "Settings"
         }
     }
@@ -25,7 +27,7 @@ struct PanelView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HeaderView(schedule: model.schedule, latestTest: model.latestTest)
+            HeaderView(schedule: model.schedule, skippedTest: model.skippedTest, latestTest: model.latestTest)
             Picker("Page", selection: $page) {
                 ForEach(PanelPage.allCases, id: \.self) { panelPage in
                     Text(panelPage.title).tag(panelPage)
@@ -38,6 +40,8 @@ struct PanelView: View {
             switch page {
             case .history:
                 HistoryView(model: model)
+            case .weeklyPattern:
+                WeeklyPatternView(state: model.weeklyPattern)
             case .settings:
                 SettingsView(model: model)
             }

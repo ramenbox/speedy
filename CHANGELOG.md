@@ -3,6 +3,20 @@
 All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-10-14
+
+### Added
+
+- Week tab: average download for each weekday and hour of the last 30 days, with the slowest and the fastest hour.
+- Skip tests on metered networks: scheduled tests do not run on a network that macOS marks as metered, for example an iPhone hotspot, or with Low Data Mode. On by default. The status shows "Skipped".
+- Contract download speed setting. The chart shows it as a dashed line, and the statistics show the average and lowest download as a percentage of it.
+- Responsiveness (RPM) in the statistics and in the list of tests.
+- Setting to show the last download speed next to the menu bar icon.
+
+### Changed
+
+- The first test after start or resume begins after 1 second, so Speedy knows the network type before it decides to test.
+
 ## [1.0.1] - 2026-10-07
 
 ### Changed
@@ -32,5 +46,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - One-time import of `~/Documents/Office Speedtest/results.csv`.
 - Checks for the core logic (`./checks.sh`).
 
+[1.1.0]: https://github.com/ramenbox/speedy/releases/tag/v1.1.0
 [1.0.1]: https://github.com/ramenbox/speedy/releases/tag/v1.0.1
 [1.0.0]: https://github.com/ramenbox/speedy/releases/tag/v1.0.0

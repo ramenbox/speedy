@@ -55,6 +55,24 @@ enum SlowDownloadAlert: String, CaseIterable, Identifiable {
     }
 }
 
+/// The download speed of the internet contract. The statistics compare the measured download with it.
+enum ContractSpeed: Equatable {
+    case notSet
+    case megabitsPerSecond(Int)
+
+    /// 0 or a negative number means that no contract speed is set.
+    init(storedMegabitsPerSecond: Int) {
+        self = storedMegabitsPerSecond > 0 ? .megabitsPerSecond(storedMegabitsPerSecond) : .notSet
+    }
+
+    var storedMegabitsPerSecond: Int {
+        switch self {
+        case .notSet: return 0
+        case .megabitsPerSecond(let megabitsPerSecond): return megabitsPerSecond
+        }
+    }
+}
+
 enum SlowDownloadLimit: Equatable {
     case off
     case below(megabitsPerSecond: Double)
