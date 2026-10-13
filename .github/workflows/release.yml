@@ -13,6 +13,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check that the tag matches the app version
+        run: |
+          app_version=$(sed -n 's/^readonly app_version="\(.*\)"$/\1/p' build.sh)
+          if [ "v${app_version}" != "${GITHUB_REF_NAME}" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match app_version \"${app_version}\" in build.sh"
+            exit 1
+          fi
+
       - name: Run checks
         run: ./checks.sh
 
